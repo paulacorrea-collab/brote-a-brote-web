@@ -930,7 +930,9 @@ async function showOrdersPanel(passcode){
 }
 
 function renderOrdersPanel(orders){
-  const rows = orders.map(o => `
+  const rows = orders.map(o => {
+    const done = o.status === 'completado';
+    return `
     <tr>
       <td class="mono">#${o.code}</td>
       <td>${new Date(o.created_at).toLocaleString('es-CL', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'})}</td>
@@ -938,16 +940,25 @@ function renderOrdersPanel(orders){
       <td>${o.items.map(i=>`${i.name} × ${i.qty}`).join('<br>')}</td>
       <td class="mono">${CLP(o.total)}</td>
       <td style="max-width:160px;">${o.notes ? o.notes : '<span style="opacity:.4;">—</span>'}</td>
+      <td>
+        <button
+          class="order-status-btn"
+          data-code="${o.code}"
+          data-status="${done ? 'pendiente' : 'completado'}"
+          style="border:1px solid var(--line); border-radius:20px; padding:5px 12px; font-size:0.78rem; background:${done ? 'var(--moss)' : 'transparent'}; color:${done ? 'var(--paper)' : 'var(--ink)'};"
+        >${done ? '✓ Completado' : 'Pendiente'}</button>
+      </td>
     </tr>
-  `).join('');
+  `;
+  }).join('');
 
   modalContent.innerHTML = `
     <h3>Pedidos (${orders.length})</h3>
-    <div class="sub">Del más reciente al más antiguo. Se guardan automáticamente cuando alguien confirma su pedido.</div>
+    <div class="sub">Del más reciente al más antiguo. Se guardan automáticamente cuando alguien confirma su pedido. Haz clic en el estado para marcarlo.</div>
     <div style="max-height:56vh; overflow-y:auto; margin:14px 0; border:1px solid var(--line); border-radius:8px;">
       ${orders.length ? `
       <table class="admin-table">
-        <thead><tr><th>Código</th><th>Fecha</th><th>Cliente</th><th>Pedido</th><th>Total</th><th>Notas</th></tr></thead>
+        <thead><tr><th>Código</th><th>Fecha</th><th>Cliente</th><th>Pedido</th><th>Total</th><th>Notas</th><th>Estado</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>` : `<div class="admin-empty">Todavía no ha llegado ningún pedido.</div>`}
     </div>
@@ -958,6 +969,27 @@ function renderOrdersPanel(orders){
   `;
   document.getElementById('closeAdmin').addEventListener('click', ()=>{ closeModal(); modalContent.classList.remove('modal-wide'); });
   document.getElementById('refreshAdmin').addEventListener('click', ()=> showOrdersPanel());
+  modalContent.querySelectorAll('.order-status-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> setOrderStatus(btn.dataset.code, btn.dataset.status));
+  });
+}
+
+async function setOrderStatus(code, status){
+  try{
+    const res = await fetch(`${API_BASE_URL}/api/orders/${encodeURIComponent(code)}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-admin-passcode': window.__adminPasscode || '',
+      },
+      body: JSON.stringify({ status }),
+    });
+    if(!res.ok) throw new Error('No se pudo actualizar el estado.');
+    await showOrdersPanel();
+  }catch(e){
+    console.error(e);
+    alert('No pudimos actualizar el estado del pedido. Intenta de nuevo.');
+  }
 }
 
 document.getElementById('adminLinkBtn').addEventListener('click', ()=>{
