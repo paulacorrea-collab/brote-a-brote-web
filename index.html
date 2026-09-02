@@ -948,17 +948,24 @@ function renderOrdersPanel(orders){
           style="border:1px solid var(--line); border-radius:20px; padding:5px 12px; font-size:0.78rem; background:${done ? 'var(--moss)' : 'transparent'}; color:${done ? 'var(--paper)' : 'var(--ink)'};"
         >${done ? '✓ Completado' : 'Pendiente'}</button>
       </td>
+      <td>
+        <button
+          class="order-delete-btn"
+          data-code="${o.code}"
+          style="border:1px solid var(--clay-dark); border-radius:20px; padding:5px 12px; font-size:0.78rem; background:transparent; color:var(--clay-dark);"
+        >Eliminar</button>
+      </td>
     </tr>
   `;
   }).join('');
 
   modalContent.innerHTML = `
     <h3>Pedidos (${orders.length})</h3>
-    <div class="sub">Del más reciente al más antiguo. Se guardan automáticamente cuando alguien confirma su pedido. Haz clic en el estado para marcarlo.</div>
+    <div class="sub">Del más reciente al más antiguo. Se guardan automáticamente cuando alguien confirma su pedido. Haz clic en el estado para marcarlo. Eliminar devuelve el stock al inventario.</div>
     <div style="max-height:56vh; overflow-y:auto; margin:14px 0; border:1px solid var(--line); border-radius:8px;">
       ${orders.length ? `
       <table class="admin-table">
-        <thead><tr><th>Código</th><th>Fecha</th><th>Cliente</th><th>Pedido</th><th>Total</th><th>Notas</th><th>Estado</th></tr></thead>
+        <thead><tr><th>Código</th><th>Fecha</th><th>Cliente</th><th>Pedido</th><th>Total</th><th>Notas</th><th>Estado</th><th></th></tr></thead>
         <tbody>${rows}</tbody>
       </table>` : `<div class="admin-empty">Todavía no ha llegado ningún pedido.</div>`}
     </div>
@@ -971,6 +978,9 @@ function renderOrdersPanel(orders){
   document.getElementById('refreshAdmin').addEventListener('click', ()=> showOrdersPanel());
   modalContent.querySelectorAll('.order-status-btn').forEach(btn=>{
     btn.addEventListener('click', ()=> setOrderStatus(btn.dataset.code, btn.dataset.status));
+  });
+  modalContent.querySelectorAll('.order-delete-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=> deleteOrder(btn.dataset.code));
   });
 }
 
@@ -989,6 +999,23 @@ async function setOrderStatus(code, status){
   }catch(e){
     console.error(e);
     alert('No pudimos actualizar el estado del pedido. Intenta de nuevo.');
+  }
+}
+
+async function deleteOrder(code){
+  if(!confirm(`¿Eliminar el pedido #${code}? Esto devuelve sus plantas al inventario.`)) return;
+  try{
+    const res = await fetch(`${API_BASE_URL}/api/orders/${encodeURIComponent(code)}`, {
+      method: 'DELETE',
+      headers: { 'x-admin-passcode': window.__adminPasscode || '' },
+    });
+    if(!res.ok) throw new Error('No se pudo eliminar el pedido.');
+    await showOrdersPanel();
+    await loadStock();
+    renderGrid();
+  }catch(e){
+    console.error(e);
+    alert('No pudimos eliminar el pedido. Intenta de nuevo.');
   }
 }
 
